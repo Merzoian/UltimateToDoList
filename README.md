@@ -70,7 +70,7 @@ This project is a Desktop To-Do List Application created for CSE 310. It was bui
 ---
 
 ## 🎥 Demo Video
-▶️ **[Click here to watch the demo](https://youtu.be/YOUR_VIDEO_LINK_HERE)**  
+▶️ **[Click here to watch the demo](https://youtu.be/EFYzxFpNCPE)**  
 Duration: 2–3 minutes  
 Includes: Overview, feature demo, and what I learned.
 
