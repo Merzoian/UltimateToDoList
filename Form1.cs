@@ -1,15 +1,16 @@
+using Google.Cloud.Firestore;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
-using Newtonsoft.Json;
 
 namespace UltimateToDoList
 {
     public partial class Form1 : Form
     {
+        private FirestoreDb? firestoreDb;
         private List<TaskItem> allTasks = new List<TaskItem>();
 
         public Form1()
@@ -17,67 +18,113 @@ namespace UltimateToDoList
             InitializeComponent();
         }
 
-        private void Form1_Load(object sender, EventArgs e)
+        private async void Form1_Load(object sender, EventArgs e)
         {
-            cmbPriority.SelectedIndex = 1;
-            cmbFilterPriority.SelectedIndex = 0;
-            statusLabel.Text = "Welcome! Load existing tasks or create a new one.";
+            try
+            {
+                // Connect to the database using your key file
+                string keyPath = AppDomain.CurrentDomain.BaseDirectory + "firebase-key.json";
+                Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", keyPath);
+
+                // Ensure you have replaced this with your actual Project ID
+                firestoreDb = FirestoreDb.Create("cse310-todolist");
+
+                // Set defaults for UI controls
+                cmbPriority.SelectedIndex = 1;
+                cmbFilterPriority.SelectedIndex = 0;
+                statusLabel.Text = "Loading tasks from cloud...";
+
+                await LoadTasksAsync(); // Load tasks from the cloud
+                statusLabel.Text = "Ready.";
+            }
+            catch (Exception ex)
+            {
+                // If anything goes wrong during startup, show a detailed error message
+                MessageBox.Show($"Failed to connect to the database. Please check your firebase-key.json file and Project ID.\n\nError: {ex.Message}", "Connection Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                // Close the application since it cannot function without the database
+                Application.Exit();
+            }
+        }
+
+        private async Task LoadTasksAsync()
+        {
+            if (firestoreDb == null) return; // Don't run if the database connection failed
+
+            allTasks.Clear();
+
+            QuerySnapshot snapshot = await firestoreDb.Collection("tasks").GetSnapshotAsync();
+            foreach (DocumentSnapshot document in snapshot.Documents)
+            {
+                TaskItem task = document.ConvertTo<TaskItem>();
+                allTasks.Add(task);
+            }
+            // --- ADD THIS LINE TO SORT THE TASKS ---
+            allTasks = allTasks.OrderBy(task => task.OrderIndex).ToList();
+
+            RefreshTaskList();
         }
 
         #region Core Task Actions (Add, Complete, Delete)
 
-        private void btnAddTask_Click(object sender, EventArgs e)
+        private async void btnAddTask_Click(object sender, EventArgs e)
         {
+            if (firestoreDb == null) return;
             string taskTitle = txtTaskTitle.Text.Trim();
             if (string.IsNullOrEmpty(taskTitle))
             {
-                MessageBox.Show("Please enter a task title.", "Title Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Please enter a task title.", "Title Required");
                 return;
             }
 
-            // FIX: Safely get the selected priority. If nothing is selected, default to "Medium".
             string priority = cmbPriority.SelectedItem?.ToString() ?? "Medium";
+            // Get the local time from the picker and convert it to UTC
+            DateTime dueDateUtc = dtpDueDate.Value.ToUniversalTime();
+            int newIndex = allTasks.Count; // The new task will be last in the list
+            // Now, create the new task using the converted UTC date
+            var newTask = new TaskItem(taskTitle, priority, dueDateUtc);
 
-            var newTask = new TaskItem(
-                taskTitle,
-                priority,
-                dtpDueDate.Value
-            );
+            await firestoreDb.Collection("tasks").Document(newTask.Id).SetAsync(newTask);
 
             allTasks.Add(newTask);
             RefreshTaskList();
 
             txtTaskTitle.Clear();
-            txtTaskTitle.Focus();
-            statusLabel.Text = $"Task '{taskTitle}' added.";
+            statusLabel.Text = $"Task '{taskTitle}' added to cloud.";
         }
 
-        private void btnMarkComplete_Click(object sender, EventArgs e)
+        private async void btnMarkComplete_Click(object sender, EventArgs e)
         {
-            if (listViewTasks.SelectedItems.Count == 0) return;
+            if (firestoreDb == null || listViewTasks.SelectedItems.Count == 0) return;
 
-            // FIX: Safely get the task object from the selected item's Tag property.
-            if (listViewTasks.SelectedItems[0].Tag is TaskItem task)
+            ListViewItem selectedItem = listViewTasks.SelectedItems[0];
+            if (selectedItem != null && selectedItem.Tag is TaskItem task)
             {
                 task.IsComplete = !task.IsComplete;
-                UpdateTaskAppearance(listViewTasks.SelectedItems[0]);
-                statusLabel.Text = $"Task '{task.Title}' status updated.";
+
+                DocumentReference docRef = firestoreDb.Collection("tasks").Document(task.Id);
+                await docRef.SetAsync(task, SetOptions.Overwrite);
+
+                UpdateTaskAppearance(selectedItem);
+                statusLabel.Text = $"Task '{task.Title}' status updated in cloud.";
             }
         }
 
-        private void btnDeleteTask_Click(object sender, EventArgs e)
+        private async void btnDeleteTask_Click(object sender, EventArgs e)
         {
-            if (listViewTasks.SelectedItems.Count == 0) return;
+            if (firestoreDb == null || listViewTasks.SelectedItems.Count == 0) return;
 
-            // FIX: Safely get the task object.
-            if (listViewTasks.SelectedItems[0].Tag is TaskItem task)
+            ListViewItem selectedItem = listViewTasks.SelectedItems[0];
+            if (selectedItem != null && selectedItem.Tag is TaskItem task)
             {
-                DialogResult result = MessageBox.Show($"Are you sure you want to delete the task: '{task.Title}'?", "Confirm Deletion", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                DialogResult result = MessageBox.Show($"Delete '{task.Title}'?", "Confirm", MessageBoxButtons.YesNo);
                 if (result == DialogResult.Yes)
                 {
+                    await firestoreDb.Collection("tasks").Document(task.Id).DeleteAsync();
+
                     allTasks.Remove(task);
                     RefreshTaskList();
-                    statusLabel.Text = $"Task '{task.Title}' deleted.";
+                    statusLabel.Text = $"Task '{task.Title}' deleted from cloud.";
                 }
             }
         }
@@ -91,9 +138,7 @@ namespace UltimateToDoList
             listViewTasks.BeginUpdate();
             listViewTasks.Items.Clear();
 
-            // FIX: Safely get the filter string.
             string filter = cmbFilterPriority.SelectedItem?.ToString() ?? "All";
-
             var filteredTasks = allTasks.Where(task => filter == "All" || task.Priority == filter);
 
             foreach (var task in filteredTasks)
@@ -102,11 +147,9 @@ namespace UltimateToDoList
                 item.SubItems.Add(task.Priority);
                 item.SubItems.Add(task.DueDate.ToShortDateString());
                 item.Tag = task;
-
                 UpdateTaskAppearance(item);
                 listViewTasks.Items.Add(item);
             }
-
             listViewTasks.EndUpdate();
         }
 
@@ -117,7 +160,6 @@ namespace UltimateToDoList
 
         private void UpdateTaskAppearance(ListViewItem item)
         {
-            // FIX: Safely get the task object.
             if (item.Tag is TaskItem task)
             {
                 if (task.IsComplete)
@@ -135,56 +177,10 @@ namespace UltimateToDoList
 
         #endregion
 
-        #region Save and Load Logic
-
-        private void btnSave_Click(object sender, EventArgs e)
-        {
-            using (SaveFileDialog sfd = new SaveFileDialog())
-            {
-                sfd.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*";
-                sfd.Title = "Save Tasks File";
-                if (sfd.ShowDialog() == DialogResult.OK)
-                {
-                    string json = JsonConvert.SerializeObject(allTasks, Formatting.Indented);
-                    File.WriteAllText(sfd.FileName, json);
-                    statusLabel.Text = $"Tasks saved to {Path.GetFileName(sfd.FileName)}";
-                }
-            }
-        }
-
-        private void btnLoad_Click(object sender, EventArgs e)
-        {
-            using (OpenFileDialog ofd = new OpenFileDialog())
-            {
-                ofd.Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*";
-                ofd.Title = "Open Tasks File";
-                if (ofd.ShowDialog() == DialogResult.OK)
-                {
-                    string json = File.ReadAllText(ofd.FileName);
-
-                    // FIX: Handle the case where the file might be empty or invalid.
-                    var loadedTasks = JsonConvert.DeserializeObject<List<TaskItem>>(json);
-                    if (loadedTasks != null)
-                    {
-                        allTasks = loadedTasks;
-                        RefreshTaskList();
-                        statusLabel.Text = $"Tasks loaded from {Path.GetFileName(ofd.FileName)}";
-                    }
-                    else
-                    {
-                        MessageBox.Show("Could not load tasks from the selected file.", "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
-                }
-            }
-        }
-
-        #endregion
-
         #region Drag and Drop Logic
 
         private void listViewTasks_ItemDrag(object sender, ItemDragEventArgs e)
         {
-            // FIX: Check that e.Item is not null before starting the drag.
             if (e.Item != null)
             {
                 DoDragDrop(e.Item, DragDropEffects.Move);
@@ -199,57 +195,61 @@ namespace UltimateToDoList
             }
         }
 
-        private void listViewTasks_DragDrop(object sender, DragEventArgs e)
+        private async void listViewTasks_DragDrop(object sender, DragEventArgs e)
         {
-            // FIX: Add comprehensive null checks for all objects involved in the drag/drop.
-            if (e.Data == null) return;
+            // Standard drag-drop setup code
+            if (firestoreDb == null) return;
+            ListViewItem? draggedItem = e.Data?.GetData(typeof(ListViewItem)) as ListViewItem;
+            if (draggedItem == null) return;
+            Point dropPoint = listViewTasks.PointToClient(new Point(e.X, e.Y));
+            ListViewItem? targetItem = listViewTasks.GetItemAt(dropPoint.X, dropPoint.Y);
+            if (targetItem == null || targetItem == draggedItem) return;
 
-            Point cp = listViewTasks.PointToClient(new Point(e.X, e.Y));
-            ListViewItem? dropTargetItem = listViewTasks.GetItemAt(cp.X, cp.Y);
-            ListViewItem? draggedItem = e.Data.GetData(typeof(ListViewItem)) as ListViewItem;
+            // --- THIS IS THE CORRECTED LOGIC ---
 
-            if (draggedItem == null || dropTargetItem == null || draggedItem == dropTargetItem) return;
+            // Use 'as' for a safe cast. This will result in null if the cast fails.
+            TaskItem? draggedTask = draggedItem.Tag as TaskItem;
+            TaskItem? targetTask = targetItem.Tag as TaskItem;
 
-            if (draggedItem.Tag is TaskItem draggedTask && dropTargetItem.Tag is TaskItem targetTask)
+            // Add a critical check: If either task is null, we can't proceed.
+            if (draggedTask == null || targetTask == null)
             {
-                int targetIndex = allTasks.IndexOf(targetTask);
-                if (targetIndex >= 0)
-                {
-                    allTasks.Remove(draggedTask);
-                    allTasks.Insert(targetIndex, draggedTask);
-                    RefreshTaskList();
-                    statusLabel.Text = "Task order updated.";
-                }
+                return;
             }
+
+            // --- END OF FIX ---
+
+          
+            int targetIndex = allTasks.IndexOf(targetTask);
+            if (targetIndex < 0) return; // Safety check if target isn't in the list
+
+            // Reorder the local list
+            allTasks.Remove(draggedTask);
+            allTasks.Insert(targetIndex, draggedTask);
+
+            // Update OrderIndex and save to Firebase
+            statusLabel.Text = "Saving new order to the cloud...";
+            WriteBatch batch = firestoreDb.StartBatch();
+
+            for (int i = 0; i < allTasks.Count; i++)
+            {
+                TaskItem task = allTasks[i];
+                task.OrderIndex = i;
+
+                DocumentReference docRef = firestoreDb.Collection("tasks").Document(task.Id);
+                batch.Update(docRef, "OrderIndex", task.OrderIndex);
+            }
+
+            await batch.CommitAsync();
+
+            RefreshTaskList();
+            statusLabel.Text = "Task order saved.";
         }
+
+
         #endregion
 
         private void listViewTasks_SelectedIndexChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void txtTaskTitle_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void panel2_Paint(object sender, PaintEventArgs e)
-        {
-
-        }
-
-        private void dtpDueDate_ValueChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void Form1_Load_1(object sender, EventArgs e)
-        {
-
-        }
-
-        private void cmbPriority_SelectedIndexChanged(object sender, EventArgs e)
         {
 
         }

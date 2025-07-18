@@ -35,8 +35,6 @@
             statusStrip1 = new StatusStrip();
             statusLabel = new ToolStripStatusLabel();
             panel1 = new Panel();
-            btnLoad = new Button();
-            btnSave = new Button();
             btnDeleteTask = new Button();
             btnMarkComplete = new Button();
             panel2 = new Panel();
@@ -67,7 +65,10 @@
             listViewTasks.TabIndex = 0;
             listViewTasks.UseCompatibleStateImageBehavior = false;
             listViewTasks.View = View.Details;
+            listViewTasks.ItemDrag += listViewTasks_ItemDrag;
             listViewTasks.SelectedIndexChanged += listViewTasks_SelectedIndexChanged;
+            listViewTasks.DragDrop += listViewTasks_DragDrop;
+            listViewTasks.DragEnter += listViewTasks_DragEnter;
             // 
             // column1
             // 
@@ -92,19 +93,15 @@
             statusStrip1.Size = new Size(1023, 22);
             statusStrip1.TabIndex = 1;
             statusStrip1.Text = "statusStrip1";
-            
             // 
             // statusLabel
             // 
             statusLabel.Name = "statusLabel";
             statusLabel.Size = new Size(118, 17);
             statusLabel.Text = "toolStripStatusLabel1";
-          
             // 
             // panel1
             // 
-            panel1.Controls.Add(btnLoad);
-            panel1.Controls.Add(btnSave);
             panel1.Controls.Add(btnDeleteTask);
             panel1.Controls.Add(btnMarkComplete);
             panel1.Dock = DockStyle.Bottom;
@@ -112,29 +109,6 @@
             panel1.Name = "panel1";
             panel1.Size = new Size(1023, 30);
             panel1.TabIndex = 2;
-            
-            // 
-            // btnLoad
-            // 
-            btnLoad.AutoSize = true;
-            btnLoad.Location = new Point(198, 3);
-            btnLoad.Name = "btnLoad";
-            btnLoad.Size = new Size(75, 25);
-            btnLoad.TabIndex = 3;
-            btnLoad.Text = "Load";
-            btnLoad.UseVisualStyleBackColor = true;
-            btnLoad.Click += btnLoad_Click;
-            // 
-            // btnSave
-            // 
-            btnSave.AutoSize = true;
-            btnSave.Location = new Point(117, 3);
-            btnSave.Name = "btnSave";
-            btnSave.Size = new Size(75, 25);
-            btnSave.TabIndex = 2;
-            btnSave.Text = "Save";
-            btnSave.UseVisualStyleBackColor = true;
-            btnSave.Click += btnSave_Click;
             // 
             // btnDeleteTask
             // 
@@ -175,7 +149,6 @@
             panel2.Name = "panel2";
             panel2.Size = new Size(1023, 60);
             panel2.TabIndex = 3;
-            panel2.Paint += panel2_Paint;
             // 
             // label3
             // 
@@ -185,7 +158,6 @@
             label3.Size = new Size(50, 15);
             label3.TabIndex = 12;
             label3.Text = "Text Box";
-            
             // 
             // label2
             // 
@@ -195,7 +167,6 @@
             label2.Size = new Size(45, 15);
             label2.TabIndex = 11;
             label2.Text = "Priority";
-           
             // 
             // label1
             // 
@@ -205,7 +176,6 @@
             label1.Size = new Size(90, 15);
             label1.TabIndex = 10;
             label1.Text = "Filter by Priority";
-            
             // 
             // cmbFilterPriority
             // 
@@ -216,7 +186,6 @@
             cmbFilterPriority.Name = "cmbFilterPriority";
             cmbFilterPriority.Size = new Size(62, 23);
             cmbFilterPriority.TabIndex = 9;
-            //cmbFilterPriority.SelectedIndexChanged += this.cmbFilterPriority_SelectedIndexChanged_1;
             cmbFilterPriority.Click += cmbFilterPriority_SelectedIndexChanged;
             // 
             // btnAddTask
@@ -236,7 +205,6 @@
             txtTaskTitle.Size = new Size(308, 23);
             txtTaskTitle.TabIndex = 4;
             txtTaskTitle.Text = "Title";
-            txtTaskTitle.TextChanged += txtTaskTitle_TextChanged;
             // 
             // dtpDueDate
             // 
@@ -245,7 +213,6 @@
             dtpDueDate.Name = "dtpDueDate";
             dtpDueDate.Size = new Size(105, 23);
             dtpDueDate.TabIndex = 4;
-            dtpDueDate.ValueChanged += dtpDueDate_ValueChanged;
             // 
             // cmbPriority
             // 
@@ -256,8 +223,6 @@
             cmbPriority.Name = "cmbPriority";
             cmbPriority.Size = new Size(63, 23);
             cmbPriority.TabIndex = 7;
-            cmbPriority.SelectedIndexChanged += cmbPriority_SelectedIndexChanged;
-            cmbPriority.Click += listViewTasks_SelectedIndexChanged;
             // 
             // Form1
             // 
@@ -271,7 +236,7 @@
             Controls.Add(statusStrip1);
             Name = "Form1";
             Text = "To Do List by ValMarogi";
-            Load += Form1_Load_1;
+            Load += Form1_Load;
             statusStrip1.ResumeLayout(false);
             statusStrip1.PerformLayout();
             panel1.ResumeLayout(false);
@@ -291,8 +256,6 @@
         private StatusStrip statusStrip1;
         private ToolStripStatusLabel statusLabel;
         private Panel panel1;
-        private Button btnLoad;
-        private Button btnSave;
         private Button btnDeleteTask;
         private Button btnMarkComplete;
         private Panel panel2;

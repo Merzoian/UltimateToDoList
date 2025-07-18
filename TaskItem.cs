@@ -1,20 +1,35 @@
-﻿using System;
+﻿using Google.Cloud.Firestore; // Add this using statement
+using System;
 
+[FirestoreData] // Add this attribute
 public class TaskItem
 {
-    // Initialize properties to a non-null default value.
-    // string.Empty is a valid, non-null string.
+    [FirestoreProperty] // This attribute is for the ID
+    public string Id { get; set; } = string.Empty;
+
+    [FirestoreProperty] // Add this attribute to all properties
     public string Title { get; set; } = string.Empty;
+
+    [FirestoreProperty]
     public string Priority { get; set; } = string.Empty;
+
+    [FirestoreProperty]
     public DateTime DueDate { get; set; }
+
+    [FirestoreProperty]
     public bool IsComplete { get; set; }
 
-    // This empty constructor is now safe because the properties are initialized above.
+    // --- ADD THIS NEW PROPERTY ---
+    [FirestoreProperty]
+    public int OrderIndex { get; set; }
+    // ----------------------------
+
     public TaskItem() { }
 
-    // Updated constructor to include the due date.
     public TaskItem(string title, string priority, DateTime dueDate)
     {
+        // Generate a new, unique ID for every new task
+        Id = Guid.NewGuid().ToString();
         Title = title;
         Priority = priority;
         DueDate = dueDate;
