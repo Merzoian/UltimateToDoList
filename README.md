@@ -55,10 +55,9 @@ In a significant revision, this application has been upgraded to use **Google Fi
 ---
 
 ## 🎥 Demo Video
-
-▶️ **[Click here to watch the demo](https://youtu.be/YOUR_VIDEO_LINK_HERE)**
-*Duration: 2–3 minutes*
-*Includes: Overview, feature demo, and what I learned.*
+▶️ **[Click here to watch the demo](https://youtu.be/YOUR_VIDEO_LINK_HERE)**  
+Duration: 2–3 minutes  
+Includes: Overview, feature demo, and what I learned.
 
 ---
 
